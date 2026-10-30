@@ -12,6 +12,9 @@ venv/
 .env
 .env.*
 
+# 运行产物 - 不提交
+*.csv
+
 # 系统文件
 Thumbs.db
 desktop.ini
