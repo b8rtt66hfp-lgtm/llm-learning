@@ -1,4 +1,4 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/projects/sensor-api/venv/Scripts/python.exe",
+  "python.defaultInterpreterPath": "${workspaceFolder}/projects/api-client/venv/Scripts/python.exe",
   "python.terminal.activateEnvironment": true
 }
