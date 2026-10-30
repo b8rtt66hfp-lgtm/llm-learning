@@ -1,0 +1,13 @@
+# 大文件目录 - 绝不入库
+ollama/
+downloads/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 系统文件
+Thumbs.db
+desktop.ini
