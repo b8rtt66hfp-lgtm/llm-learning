@@ -8,6 +8,10 @@ __pycache__/
 .venv/
 venv/
 
+# 密钥文件 - 绝不入库
+.env
+.env.*
+
 # 系统文件
 Thumbs.db
 desktop.ini
