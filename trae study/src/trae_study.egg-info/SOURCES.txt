@@ -1,0 +1,7 @@
+pyproject.toml
+src/trae_study/__init__.py
+src/trae_study/main.py
+src/trae_study.egg-info/PKG-INFO
+src/trae_study.egg-info/SOURCES.txt
+src/trae_study.egg-info/dependency_links.txt
+src/trae_study.egg-info/top_level.txt
