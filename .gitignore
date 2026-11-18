@@ -1,6 +1,7 @@
 # 大文件目录 - 绝不入库
 ollama/
 downloads/
+chroma_data/
 
 # Python
 __pycache__/
