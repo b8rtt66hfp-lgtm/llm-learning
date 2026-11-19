@@ -64,15 +64,22 @@ def asr_mock(audio_path: str) -> str:
     return mapping.get(name, f"(我没听清，你说的 '{name}' 是什么？)")
 
 
+_asr_cache: dict[str, object] = {}
+
+
 def asr_funasr_onnx(audio_path: str, model_dir: str) -> str:
     """
     真实实现：funasr-onnx，直接加载 ModelScope 下载的 FunASR paraformer 模型。
-    model_dir 应包含 model_quant.onnx + decoder_quant.onnx + tokens.json。
-    首次调用会触发模型加载（~1s），后续复用。
+    model_dir 应包含 model_quant.onnx + tokens.json。
+    首次调用触发模型加载，之后按 model_dir 复用缓存实例。
     """
     from funasr_onnx import Paraformer
-    _model = Paraformer(model_dir, batch_size=1, quantize=True)
-    result = _model([audio_path])
+
+    model = _asr_cache.get(model_dir)
+    if model is None:
+        model = Paraformer(model_dir, batch_size=1, quantize=True)
+        _asr_cache[model_dir] = model
+    result = model([audio_path])
     return result[0]["preds"][0].strip() if result else ""
 
 
@@ -189,7 +196,11 @@ def voice_to_voice(audio_in: str, wav_out: str = "reply.wav",
 
     # 1) ASR
     t1 = time.time()
-    text = asr_funasr_onnx(audio_in, MODEL_DIR) if real_asr else asr_mock(audio_in)
+    if real_asr:
+        model_dir = os.getenv("ASR_MODEL_DIR") or find_asr_model_dir() or "./models/paraformer"
+        text = asr_funasr_onnx(audio_in, model_dir)
+    else:
+        text = asr_mock(audio_in)
     text = clean_asr_text(text)
     print(f"[ASR]  {text or '(无有效语音)'}  ({time.time()-t1:.1f}s)")
     if not text:
