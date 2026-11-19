@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本地语音助手 · 第五阶段交付报告</title>
+<style>
+  :root{
+    --ink:#16202b;
+    --ink-soft:#4a5a6a;
+    --line:#e2e8f0;
+    --bg:#f6f8fb;
+    --card:#ffffff;
+    --brand:#1f4e79;
+    --brand-soft:#e8f0f8;
+    --ok:#1f7a4d;
+    --ok-soft:#e7f6ee;
+    --warn:#a8501a;
+    --warn-soft:#fdf1e7;
+    --bad:#9b2c2c;
+    --bad-soft:#fbeaea;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:48px 20px 80px;
+    background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    line-height:1.7;font-size:15px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  header{border-bottom:3px solid var(--brand);padding-bottom:22px;margin-bottom:32px}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);font-weight:700}
+  h1{margin:8px 0 6px;font-size:30px;line-height:1.25;letter-spacing:-.01em}
+  .sub{color:var(--ink-soft);font-size:15px;margin:0}
+  .meta{margin-top:14px;font-size:13px;color:var(--ink-soft);display:flex;flex-wrap:wrap;gap:6px 18px}
+  .meta b{color:var(--ink)}
+  h2{
+    font-size:19px;margin:44px 0 14px;padding-left:11px;
+    border-left:4px solid var(--brand);line-height:1.35;
+  }
+  h3{font-size:15px;margin:24px 0 8px}
+  p{margin:10px 0}
+  .lede{font-size:15.5px;color:var(--ink-soft)}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px 16px}
+  .card .k{font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+  .card .v{font-size:23px;font-weight:700;margin-top:3px;color:var(--brand)}
+  .card .u{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .flow{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:20px 16px;margin:18px 0;display:flex;align-items:center;
+    gap:8px;flex-wrap:wrap;justify-content:center;
+  }
+  .node{
+    background:var(--brand-soft);border:1px solid #c9dbee;border-radius:8px;
+    padding:9px 13px;text-align:center;min-width:104px;
+  }
+  .node .t{font-weight:700;font-size:13.5px;color:var(--brand)}
+  .node .d{font-size:11.5px;color:var(--ink-soft);margin-top:1px}
+  .arrow{color:#94a3b8;font-size:18px;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:#eef2f7;font-weight:600;color:#2c3e50;white-space:nowrap}
+  td code,code.inl{
+    background:#eef2f7;border-radius:4px;padding:1px 5px;
+    font-family:ui-monospace,Consolas,monospace;font-size:12.5px;
+  }
+  .pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:600}
+  .pill.ok{background:var(--ok-soft);color:var(--ok)}
+  .pill.bad{background:var(--bad-soft);color:var(--bad)}
+  .pill.warn{background:var(--warn-soft);color:var(--warn)}
+  .callout{
+    border-left:4px solid var(--brand);background:var(--brand-soft);
+    border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14px;
+  }
+  .callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+  .callout.bad{border-color:var(--bad);background:var(--bad-soft)}
+  .callout .h{font-weight:700;display:block;margin-bottom:3px}
+  pre{
+    background:#1b2530;color:#dbe6f0;border-radius:8px;padding:14px 16px;
+    overflow-x:auto;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.6;
+  }
+  pre .c{color:#7f96ab}
+  pre .g{color:#7ee0a8}
+  pre .r{color:#ff9b9b}
+  ol,ul{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px 17px}
+  .box h3{margin-top:0}
+  footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-soft)}
+  @media (max-width:820px){
+    .cards{grid-template-columns:repeat(2,1fr)}
+    .grid2{grid-template-columns:1fr}
+    h1{font-size:24px}
+  }
+  @media print{
+    body{background:#fff;padding:0}
+    .card,.box,table,.flow{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Stage 5 · 特色方向 · 交付报告</div>
+  <h1>本地语音助手：ASR 缺陷修复与端到端能力补齐</h1>
+  <p class="sub">从「语音进、文字出」升级为「麦克风 → ASR → LLM → TTS → 扬声器」全本地闭环</p>
+  <div class="meta">
+    <span>日期 <b>2026-11-19</b></span>
+    <span>提交 <b>958c22f</b></span>
+    <span>范围 <b>projects/voice-assistant</b></span>
+    <span>变更 <b>5 files, +197 / −54</b></span>
+  </div>
+</header>
+
+<p class="lede">
+本轮工作有两个目标：第一，给语音助手补上真实的语音输出与麦克风输入，让链路真正闭环；
+第二，定位并修复一个此前一直存在的严重缺陷——语音识别对任何音频都输出乱码。
+第二个问题最终确认是模型选型错误，而不是参数或音频格式问题，修复后识别结果完全正确。
+</p>
+
+<div class="cards">
+  <div class="card"><div class="k">HTTP 接口</div><div class="v">4</div><div class="u">health / chat / voice / tts</div></div>
+  <div class="card"><div class="k">ASR 识别</div><div class="v">正确</div><div class="u">修复前为全量乱码</div></div>
+  <div class="card"><div class="k">ASR + LLM 耗时</div><div class="v">8.3<span style="font-size:13px"> s</span></div><div class="u">5.8s + 2.5s（CPU）</div></div>
+  <div class="card"><div class="k">TTS 合成</div><div class="v">122<span style="font-size:13px"> KB</span></div><div class="u">离线 SAPI5，零下载</div></div>
+</div>
+
+<h2>一、当前系统结构</h2>
+
+<div class="flow">
+  <div class="node"><div class="t">麦克风 / wav</div><div class="d">sounddevice · 16kHz</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="t">ASR</div><div class="d">funasr-onnx · 离线</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="t">LLM</div><div class="d">Ollama · qwen2.5 1.5b</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="t">TTS</div><div class="d">pyttsx3 · SAPI5</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="t">扬声器 / wav</div><div class="d">浏览器或本地播放</div></div>
+</div>
+
+<p>
+服务层为 FastAPI，对外暴露四个接口，并附带一个零依赖的网页测试页。
+所有模型与合成引擎均在本机运行，不依赖外网。
+</p>
+
+<table>
+  <thead><tr><th>接口</th><th>用途</th><th>返回</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /health</code></td><td>检查 Ollama 可达性与 ASR 模型就绪状态</td><td>JSON 状态</td></tr>
+    <tr><td><code>POST /chat</code></td><td>文字问答，支持多轮 history</td><td>JSON 回答</td></tr>
+    <tr><td><code>POST /voice</code></td><td>上传 wav，完成 ASR 与 LLM</td><td>识别文本 + 回答</td></tr>
+    <tr><td><code>POST /tts</code></td><td>文字转语音</td><td><code>audio/wav</code> 文件流</td></tr>
+    <tr><td><code>GET /</code></td><td>网页测试页（问答 + 朗读 + 上传音频）</td><td>HTML</td></tr>
+  </tbody>
+</table>
+
+<h2>二、核心缺陷：ASR 模型选型错误</h2>
+
+<div class="callout bad">
+  <span class="h">现象</span>
+  无论输入是正弦波、合成语音还是静音，ASR 都输出重复乱码，例如：<br>
+  <code class="inl">春侣熏熏熏柤柤剽瀍戒犀犀啶峰踵诰诰澌诰翎宇宇峰去去anyanyanyanycercer…</code>
+</div>
+
+<h3>根因分析</h3>
+<p>
+此前下载的模型是 <code class="inl">iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-<b>online</b>-onnx</code>，
+这是<strong>流式（online）模型</strong>，输入需要按块（chunk）组织并携带上下文状态；
+而代码使用的 <code class="inl">funasr_onnx.Paraformer</code> 是<strong>离线整段推理类</strong>，
+两者输入结构不兼容，解码器拿到的特征始终错位，因此输出必然是乱码。
+</p>
+
+<table>
+  <thead>
+    <tr><th>维度</th><th>修复前（错误）</th><th>修复后（正确）</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>模型 ID</td>
+      <td><code>…-vocab8404-online-onnx</code></td>
+      <td><code>…-vocab8404-onnx</code></td>
+    </tr>
+    <tr>
+      <td>模型类型</td>
+      <td><span class="pill bad">流式 online</span></td>
+      <td><span class="pill ok">离线整段</span></td>
+    </tr>
+    <tr>
+      <td>配套推理类</td>
+      <td><code>Paraformer</code>（离线，不匹配）</td>
+      <td><code>Paraformer</code>（匹配）</td>
+    </tr>
+    <tr>
+      <td>模型文件</td>
+      <td>model 157.8 MB + decoder 68.3 MB</td>
+      <td>model_quant 227.3 MB 单文件</td>
+    </tr>
+    <tr>
+      <td>识别结果</td>
+      <td><span class="pill bad">乱码</span></td>
+      <td><span class="pill ok">键连接的作用是什么</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>二次踩坑：路径过滤失效</h3>
+<p>
+改用离线模型后，程序仍优先加载 online 版本。原因是过滤逻辑写成了
+<code class="inl">"online" not in Path(p).name</code>，而快照目录名是 <code class="inl">master</code> 与
+<code class="inl">v2.0.4</code>，不含 “online”，过滤条件从未生效。改为对<strong>完整路径</strong>判断后才正确选中离线模型。
+</p>
+
+<pre><span class="c"># 修复前：只看最后一级目录名</span>
+offline = [p <span class="r">for</span> p <span class="r">in</span> candidates <span class="r">if</span> <span class="r">"online"</span> not <span class="r">in</span> Path(p).name.lower()]
+
+<span class="c"># 修复后：对完整路径判断</span>
+offline = [p <span class="g">for</span> p <span class="g">in</span> candidates <span class="g">if</span> <span class="g">"online"</span> not <span class="g">in</span> p.lower()]</pre>
+
+<h2>三、本轮新增能力</h2>
+
+<table>
+  <thead><tr><th>能力</th><th>技术选型</th><th>说明</th><th>状态</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>真实语音合成</td>
+      <td>pyttsx3 + Windows SAPI5</td>
+      <td>显式优选中文语音（Microsoft Huihui），无需下载模型</td>
+      <td><span class="pill ok">已验证</span></td>
+    </tr>
+    <tr>
+      <td>麦克风录音</td>
+      <td>sounddevice</td>
+      <td>录 16 kHz 单声道 wav，直接满足 ASR 输入格式</td>
+      <td><span class="pill ok">已验证</span></td>
+    </tr>
+    <tr>
+      <td>端到端命令行</td>
+      <td><code>--mic N --real-tts</code></td>
+      <td>录音 → ASR → LLM → TTS 一条命令完成</td>
+      <td><span class="pill ok">已验证</span></td>
+    </tr>
+    <tr>
+      <td>TTS 接口</td>
+      <td><code>POST /tts</code></td>
+      <td>返回 wav 流，临时文件由后台任务清理</td>
+      <td><span class="pill ok">已验证</span></td>
+    </tr>
+    <tr>
+      <td>网页朗读</td>
+      <td>原生 JS + <code>&lt;audio&gt;</code></td>
+      <td>文字问答下方一键朗读回答</td>
+      <td><span class="pill warn">代码就绪</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>四、工程健壮性改进</h2>
+
+<div class="grid2">
+  <div class="box">
+    <h3>1. 噪声输入兜底</h3>
+    <p>
+      静音或环境噪声会被 ASR 幻觉成高重复文本（如连续的“峰峰峰”），
+      直接喂给 LLM 会触发超长生成。新增 <code class="inl">clean_asr_text()</code>：
+      单字符占比超过 50% 且长度 ≥ 8 时判定为无效，直接提示“没有识别到有效语音”。
+    </p>
+  </div>
+  <div class="box">
+    <h3>2. 生成长度上限</h3>
+    <p>
+      LLM 请求增加 <code class="inl">options.num_predict = 512</code>，
+      限制单次回答长度，避免异常输入在 CPU 上生成两分钟以上导致请求超时。
+    </p>
+  </div>
+  <div class="box">
+    <h3>3. 模型路径统一</h3>
+    <p>
+      <code class="inl">find_asr_model_dir()</code> 收敛到
+      <code class="inl">voice_assistant.py</code>，CLI 与 API 共用同一套查找逻辑，
+      消除两处重复实现带来的不一致。
+    </p>
+  </div>
+  <div class="box">
+    <h3>4. 上传与会话安全</h3>
+    <p>
+      上传文件仅接受 <code class="inl">.wav</code>，临时文件在
+      <code class="inl">finally</code> 与 <code class="inl">BackgroundTask</code> 中删除；
+      同步阻塞的 ASR 与 LLM 调用统一放入线程池，避免阻塞事件循环。
+    </p>
+  </div>
+</div>
+
+<h2>五、验证记录</h2>
+
+<table>
+  <thead><tr><th>验证项</th><th>方法</th><th>结果</th></tr></thead>
+  <tbody>
+    <tr><td>ASR 正确性</td><td>用 TTS 合成的「键连接的作用是什么」作为输入</td><td><span class="pill ok">识别完全一致</span></td></tr>
+    <tr><td><code>GET /health</code></td><td>请求服务</td><td><code>ollama=true, asr_ready=true</code>，路径指向离线模型</td></tr>
+    <tr><td><code>POST /voice</code></td><td>上传 wav 文件</td><td>200，返回正确 asr_text 与专业回答</td></tr>
+    <tr><td><code>POST /tts</code></td><td>提交中文文本</td><td>200，<code>audio/wav</code>，122,356 字节</td></tr>
+    <tr><td>麦克风录制</td><td><code>record_mic(3)</code></td><td>生成 96 KB wav，格式 16 kHz 单声道</td></tr>
+    <tr><td>噪声兜底</td><td>3 秒环境录音</td><td>快速判定无效并退出，未触发 LLM 超时</td></tr>
+    <tr><td>网页与文档</td><td>访问 <code>/</code> 与 <code>/docs</code></td><td>均返回 200</td></tr>
+  </tbody>
+</table>
+
+<pre><span class="c">$ python voice_assistant.py --audio tts_input.wav --real-asr</span>
+[ASR model] …\iic--speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx\snapshots\master
+<span class="g">[ASR]  键连接的作用是什么  (5.8s)</span>
+<span class="g">[LLM]  键连接的主要作用是传递转矩，同时起到固定零件的作用…  (2.5s)</span></pre>
+
+<h2>六、遗留问题与下一步</h2>
+
+<ol>
+  <li><strong>真人语音实测</strong>：当前用合成音完成自测，合成音与真人声分布不同，需要对着麦克风实测识别率，这是上线前的关键验证。</li>
+  <li><strong>流式识别</strong>：现有链路必须等整段录音结束才出结果。若要用已下载的 online 模型做边说边识别，需引入 <code class="inl">paraformer_online_bin</code> 的流式调用方式。</li>
+  <li><strong>音频格式扩展</strong>：目前只接受 16 kHz wav。网页端如果需要直接录音，需引入 MediaRecorder（webm）并在服务端转码。</li>
+  <li><strong>访问范围</strong>：服务无鉴权，仅适合可信内网。对外暴露需要加反向代理与身份校验。</li>
+  <li><strong>资源占用</strong>：离线 ASR 模型 227 MB，常驻内存后与 Ollama 同时运行，对内存较紧张的机器需要评估。</li>
+</ol>
+
+<footer>
+  本地语音助手 · 第五阶段交付报告 · 2026-11-19 · 提交 958c22f
+  <br>
+  仓库路径 d:\trae项目2\projects\voice-assistant · 分支 main
+</footer>
+
+</div>
+</body>
+</html>
