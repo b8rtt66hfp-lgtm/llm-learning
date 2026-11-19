@@ -16,14 +16,19 @@
     # 模式 C：持续对话（用文字输入，带多轮上下文）
     python voice_assistant.py --chat
 
-依赖（模式 B 需要）：
-    # sherpa-onnx 或 funasr-onnx，详见 docs/ASR_SETUP.md
-    # ChatTTS 或 pyttsx3 做 TTS
+    # 模式 D：麦克风录音 → ASR → LLM → TTS 出声（真正的端到端闭环）
+    python voice_assistant.py --mic 5 --real-tts
+
+依赖：
+    # ASR：funasr-onnx + FunASR paraformer ONNX 模型
+    # TTS：pyttsx3（Windows SAPI5，离线、零模型下载）
+    # 麦克风：sounddevice
 """
 
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -71,6 +76,25 @@ def asr_funasr_onnx(audio_path: str, model_dir: str) -> str:
     return result[0]["preds"][0].strip() if result else ""
 
 
+def clean_asr_text(text: str, max_len: int = 200) -> str:
+    """
+    清洗 ASR 输出：
+    - 截断过长内容
+    - 同一字符占比过高（静音/噪声导致的 "峰峰峰..." 重复幻觉）视为无效，返回空串
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+    if len(text) > max_len:
+        text = text[:max_len]
+    if len(text) >= 8:
+        from collections import Counter
+        top = Counter(text).most_common(1)[0][1]
+        if top / len(text) > 0.5:
+            return ""
+    return text
+
+
 # ---------------------------------------------------------------------------
 # LLM：文字 → 文字（调 Ollama）
 # ---------------------------------------------------------------------------
@@ -83,7 +107,13 @@ def llm_reply(text: str, history: list[dict] | None = None) -> str:
 
     r = requests.post(
         f"{OLLAMA_URL}/api/chat",
-        json={"model": MODEL_NAME, "messages": messages, "stream": False},
+        json={
+            "model": MODEL_NAME,
+            "messages": messages,
+            "stream": False,
+            # 限制生成长度，防止噪声输入触发超长输出把 CPU 跑满
+            "options": {"num_predict": 512},
+        },
         timeout=120,
     )
     r.raise_for_status()
@@ -113,6 +143,41 @@ def tts_chattts(text: str, out_path: str) -> None:
     sf.write(out_path, wav, sr)
 
 
+def tts_sapi(text: str, out_path: str) -> None:
+    """Windows SAPI5 离线合成（pyttsx3），显式优先选中文语音包。"""
+    import pyttsx3
+
+    engine = pyttsx3.init()
+    engine.setProperty("rate", 180)
+    for v in engine.getProperty("voices") or []:
+        langs = [
+            l.decode() if isinstance(l, bytes) else str(l)
+            for l in (getattr(v, "languages", []) or [])
+        ]
+        if any("zh" in l.lower() for l in langs) or "chinese" in v.name.lower():
+            engine.setProperty("voice", v.id)
+            break
+    engine.save_to_file(text, out_path)
+    engine.runAndWait()
+    engine.stop()  # 释放 COM 对象，服务里反复调用更稳
+
+
+# ---------------------------------------------------------------------------
+# 麦克风：录音 → 16kHz 单声道 wav（ASR 要求的格式）
+# ---------------------------------------------------------------------------
+
+def record_mic(seconds: float = 5.0, out_path: str = "mic.wav", sr: int = 16000) -> str:
+    import sounddevice as sd
+    import soundfile as sf
+
+    print(f"[MIC] 开始录音 {seconds:.0f} 秒，请说话 ...")
+    audio = sd.rec(int(seconds * sr), samplerate=sr, channels=1, dtype="float32")
+    sd.wait()
+    sf.write(out_path, audio, sr)
+    print(f"[MIC] 已保存 → {out_path}")
+    return out_path
+
+
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
@@ -125,7 +190,11 @@ def voice_to_voice(audio_in: str, wav_out: str = "reply.wav",
     # 1) ASR
     t1 = time.time()
     text = asr_funasr_onnx(audio_in, MODEL_DIR) if real_asr else asr_mock(audio_in)
-    print(f"[ASR]  {text}  ({time.time()-t1:.1f}s)")
+    text = clean_asr_text(text)
+    print(f"[ASR]  {text or '(无有效语音)'}  ({time.time()-t1:.1f}s)")
+    if not text:
+        print("[ASR] 没有识别到有效内容（静音/噪声），跳过 LLM 和 TTS。")
+        return ""
 
     # 2) LLM
     t2 = time.time()
@@ -135,7 +204,7 @@ def voice_to_voice(audio_in: str, wav_out: str = "reply.wav",
     # 3) TTS
     t3 = time.time()
     if real_tts:
-        tts_chattts(reply, wav_out)
+        tts_sapi(reply, wav_out)
     else:
         tts_mock(reply, wav_out)
     print(f"[TTS]  done  ({time.time()-t3:.1f}s)")
@@ -170,23 +239,30 @@ def chat_loop() -> None:
 
 
 # ---------------------------------------------------------------------------
+# 模型目录查找（离线版优先；online 流式模型与离线 Paraformer 类不兼容）
+# ---------------------------------------------------------------------------
+
+def find_asr_model_dir() -> str | None:
+    base = Path(__file__).parent
+    candidates: list[str] = []
+    for pattern in (
+        base / "models" / "models" / "*paraformer*" / "snapshots" / "*",
+        base / "models" / "*paraformer*",
+    ):
+        candidates = glob.glob(str(pattern))
+        if candidates:
+            break
+    # 按完整路径过滤，排除 -online 流式模型（快照目录名是 master/v2.0.4，不能只看 basename）
+    offline = [p for p in candidates if "online" not in p.lower()]
+    return (offline or candidates or [None])[0]
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # 自动查找已下载的 paraformer 模型目录
-    _default_model_dir = None
-    _globs = [
-        os.path.join(os.path.dirname(__file__), "models", "models", "*paraformer*", "snapshots", "*"),
-        os.path.join(os.path.dirname(__file__), "models", "*paraformer*"),
-    ]
-    for _g in _globs:
-        import glob as _glob
-        matches = _glob.glob(_g)
-        if matches:
-            _default_model_dir = matches[0]
-            break
-    MODEL_DIR = os.getenv("ASR_MODEL_DIR", _default_model_dir or "./models/paraformer")
+    MODEL_DIR = os.getenv("ASR_MODEL_DIR") or find_asr_model_dir() or "./models/paraformer"
     print(f"[ASR model] {MODEL_DIR}")
 
     p = argparse.ArgumentParser()
@@ -194,18 +270,22 @@ if __name__ == "__main__":
     p.add_argument("--text", help="直接输入文字（跳过 ASR）")
     p.add_argument("--chat", action="store_true", help="持续对话模式（文字）")
     p.add_argument("--real-asr", action="store_true", help="用真实 ASR（需要先装好）")
-    p.add_argument("--real-tts", action="store_true", help="用真实 TTS（需要先装好 ChatTTS）")
+    p.add_argument("--mic", type=float, metavar="秒", help="录音 N 秒 → ASR → LLM → TTS（端到端闭环）")
+    p.add_argument("--real-tts", action="store_true", help="用真实 TTS 合成 wav（pyttsx3 / Windows SAPI5）")
     p.add_argument("--out", default="reply.wav", help="TTS 输出文件")
 
     args = p.parse_args()
 
     if args.chat:
         chat_loop()
+    elif args.mic:
+        audio = record_mic(args.mic)
+        voice_to_voice(audio, args.out, real_asr=True, real_tts=args.real_tts)
     elif args.text:
         reply = llm_reply(args.text)
         print(f"助手: {reply}")
         if args.real_tts:
-            tts_chattts(reply, args.out)
+            tts_sapi(reply, args.out)
         else:
             tts_mock(reply, args.out)
     elif args.audio:

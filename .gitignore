@@ -16,6 +16,8 @@ venv/
 
 # 运行产物 - 不提交
 *.csv
+*.wav
+projects/voice-assistant/reply.txt
 
 # 系统文件
 Thumbs.db

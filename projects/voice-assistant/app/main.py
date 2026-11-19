@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import glob
 import os
 import sys
 import tempfile
@@ -24,15 +23,16 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 # 让本文件能 import 上级目录的 voice_assistant.py
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from voice_assistant import llm_reply  # noqa: E402
+from voice_assistant import clean_asr_text, find_asr_model_dir, llm_reply, tts_sapi  # noqa: E402
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 MODEL_NAME = os.getenv("MODEL_NAME", "mechatronics-assistant")
@@ -41,19 +41,6 @@ MODEL_NAME = os.getenv("MODEL_NAME", "mechatronics-assistant")
 # ---------------------------------------------------------------------------
 # ASR 模型路径查找 + 懒加载单例
 # ---------------------------------------------------------------------------
-
-def find_asr_model_dir() -> str | None:
-    """按 ModelScope 下载后的目录结构自动定位 paraformer 模型目录。"""
-    patterns = [
-        ROOT / "models" / "models" / "*paraformer*" / "snapshots" / "*",
-        ROOT / "models" / "*paraformer*",
-    ]
-    for p in patterns:
-        matches = glob.glob(str(p))
-        if matches:
-            return matches[0]
-    return None
-
 
 ASR_MODEL_DIR = os.getenv("ASR_MODEL_DIR") or find_asr_model_dir()
 _asr_model = None
@@ -93,6 +80,10 @@ class ChatResponse(BaseModel):
 class VoiceResponse(BaseModel):
     asr_text: str
     reply: str
+
+
+class TTSRequest(BaseModel):
+    text: str
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +141,9 @@ async def voice(file: UploadFile = File(...)) -> VoiceResponse:
         tmp_path = tmp.name
     try:
         text = await run_in_threadpool(transcribe, tmp_path)
+        text = clean_asr_text(text)
         if not text:
-            raise HTTPException(status_code=422, detail="ASR 没有识别出内容")
+            raise HTTPException(status_code=422, detail="ASR 没有识别出有效内容（可能是静音或噪声）")
         reply = await run_in_threadpool(llm_reply, text, None)
     except HTTPException:
         raise
@@ -164,6 +156,38 @@ async def voice(file: UploadFile = File(...)) -> VoiceResponse:
             pass
 
     return VoiceResponse(asr_text=text, reply=reply)
+
+
+@app.post("/tts")
+async def tts(req: TTSRequest) -> FileResponse:
+    """文字 → 离线语音合成，直接返回 wav 文件（pyttsx3 / Windows SAPI5）。"""
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text 不能为空")
+
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+
+    def _cleanup() -> None:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    try:
+        await run_in_threadpool(tts_sapi, text, path)
+    except Exception as e:
+        _cleanup()
+        raise HTTPException(status_code=502, detail=f"TTS 合成失败：{e}")
+
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        _cleanup()
+        raise HTTPException(status_code=502, detail="TTS 没有生成音频")
+
+    return FileResponse(
+        path, media_type="audio/wav", filename="reply.wav",
+        background=BackgroundTask(_cleanup),
+    )
 
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -188,6 +212,8 @@ INDEX_HTML = """<!DOCTYPE html>
   <h3>文字问答</h3>
   <input id="q" type="text" placeholder="例如：键连接的作用是什么？">
   <button id="send">发送</button>
+  <button id="play" disabled>朗读回答</button>
+  <audio id="player" controls style="display:block;margin-top:10px;width:100%"></audio>
   <pre id="a1"></pre>
 </section>
 <section>
@@ -201,6 +227,7 @@ async function post(url, body) {
   const r = await fetch(url, {method:'POST', body});
   return r.json();
 }
+let lastReply = '';
 document.getElementById('send').onclick = async () => {
   const q = document.getElementById('q').value.trim();
   if (!q) return;
@@ -208,8 +235,27 @@ document.getElementById('send').onclick = async () => {
   out.textContent = '思考中...';
   try {
     const j = await post('/chat', JSON.stringify({message:q}));
-    out.textContent = j.reply || JSON.stringify(j);
+    lastReply = j.reply || '';
+    out.textContent = lastReply || JSON.stringify(j);
+    document.getElementById('play').disabled = !lastReply;
   } catch (e) { out.textContent = '请求失败：' + e; }
+};
+document.getElementById('play').onclick = async () => {
+  if (!lastReply) return;
+  const btn = document.getElementById('play');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/tts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: lastReply})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const player = document.getElementById('player');
+    player.src = URL.createObjectURL(await r.blob());
+    player.play();
+  } catch (e) { alert('朗读失败：' + e); }
+  finally { btn.disabled = false; }
 };
 document.getElementById('sendv').onclick = async () => {
   const f = document.getElementById('f').files[0];
