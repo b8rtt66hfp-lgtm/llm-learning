@@ -2,6 +2,7 @@
 ollama/
 downloads/
 chroma_data/
+models/
 
 # Python
 __pycache__/
